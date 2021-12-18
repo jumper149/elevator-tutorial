@@ -63,10 +63,16 @@ Everything up to this point should end up in a library.
 Since `MonadTransControl` is not part of the transformers package, monad-control or a new package would be suitable I guess.
 
 Now we will look at an example, that you might find in a lot of applications.
-We will use a transformer stack with 3 transformers.
+We will use a transformer stack with 4 transformers.
 The exact choice of transformers is not important, as long as they have `MonadTransControl` instances.
 
-> newtype AppT m a = AppT { unAppT :: T.ReaderT Int (T.WriterT [String] (T.ExceptT Bool m)) a}
+> newtype AppT m a = AppT { unAppT :: T.ReaderT Int
+>                                      (T.WriterT [String]
+>                                        (T.ReaderT String
+>                                          (T.ExceptT Bool m)
+>                                        )
+>                                      ) a
+>                         }
 >   deriving newtype (Functor, Applicative, Monad)
 
 We were able to derive `Functor`, `Applicative` and `Monad` instances as usual.
@@ -94,16 +100,24 @@ Unless noted, all of these instances can be derived (just not all together).
 >   -- A lot of times we don't want these instances out of our transformer stack, but the ones from
 >   -- our base monad `m`.
 >   -- We can derive these using our `Elevator` instances.
->   deriving (MonadReader r) via Elevator AppT m
+> --  deriving (MonadReader r) via Elevator AppT m
 >   deriving (MonadWriter w) via Elevator AppT m
 > --  deriving (MonadError e) via Elevator AppT m
+> 
+>   -- We can even use `Elevator` to derive a specific instance out of our transformer stack.
+>   -- Notice, that we have two `ReaderT`s.
+>   -- You usually have to use `lift` and `liftWith` to implement this instance manually.
+>   deriving (MonadReader String) via (Elevator (T.ReaderT Int)        -- this instance is used with GeneralizedNewtypeDeriving
+>                                     (Elevator (T.WriterT [String])
+>                                     (         (T.ReaderT String)     -- this instance will be used
+>                                     (Elevator (T.ExceptT Bool) m))))
 
 Now we can clearly see whether we get an instance out of our transformer stack, or from the base monad `m`.
 
 If we want `MonadTrans AppT` and `MonadTransControl AppT` instances, we still have to implement those manually.
 
 > instance MonadTrans AppT where
->   lift = AppT . lift . lift . lift
+>   lift = AppT . lift . lift . lift . lift
 > 
 > instance MonadTransControl AppT where
 >   type StT AppT a = StT (T.ExceptT Bool) (StT (T.WriterT [String]) (StT (T.ReaderT Int) a))
@@ -111,8 +125,9 @@ If we want `MonadTrans AppT` and `MonadTransControl AppT` instances, we still ha
 >     liftWith $ \ runT ->
 >       liftWith $ \ runT' ->
 >         liftWith $ \ runT'' ->
->           f (runT'' . runT' . runT . unAppT)
->   restoreT = AppT . restoreT . restoreT . restoreT
+>           liftWith $ \ runT''' ->
+>             f (runT''' . runT'' . runT' . runT . unAppT)
+>   restoreT = AppT . restoreT . restoreT . restoreT . restoreT
 
 These instances can only be derived when actually composing transformers with `ComposeT`.
 

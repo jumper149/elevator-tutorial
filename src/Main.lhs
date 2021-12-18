@@ -60,7 +60,7 @@ Now we will implement a few instances for `Elevator t m`.
 >   pass tma = Elevator $ lift . pass . pure =<< unElevator tma
 
 Everything up to this point should end up in a library.
-Since `MonadTransControl` is not part of the "transformers" package, "monad-control" or a new package would be suitable I guess.
+Since `MonadTransControl` is not part of the transformers package, monad-control or a new package would be suitable I guess.
 
 Now we will look at an example, that you might find in a lot of applications.
 We will use a transformer stack with 3 transformers.
